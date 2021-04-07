@@ -8,12 +8,27 @@ async function getPage(term) {
 			slowMo: 10
 		});
 
+		const loginPage = await browser.newPage()
+
+		await loginPage.goto('https://www.crunchbase.com/login')
+		await loginPage.waitForSelector('login')
+		await loginPage.type('input[name=email]', 'contact@angelmatch.io', {delay: 20})
+		await loginPage.type('input[name=password]', '2021angelmatcH', {delay: 20})
+		await loginPage.keyboard.press(String.fromCharCode(13))
+		await loginPage.waitForTimeout(2000)
+		await loginPage.close()
+
 		const page = await browser.newPage();
+		const page2 = await browser.newPage();
 		page.on('console', consoleObj => console.log(consoleObj.text()));
+		page2.on('console', consoleObj => console.log(consoleObj.text()));
 
 		await page.goto(term);
+		await page2.goto(term + '/recent_investments')
 		await page.waitForSelector('.multiple-sections')
+		await page2.waitForSelector('body')
 
+		// Summary page
 		const curData = await page.evaluate(() => {
 			function camelize(str) {
 				return str.replace(/(?:^\w|[A-Z]|\b\w)/g, function (word, index) {
@@ -28,7 +43,7 @@ async function getPage(term) {
 					details: {}
 				},
 				investments: {
-
+					highlights: {}
 				}
 			}
 
@@ -39,7 +54,7 @@ async function getPage(term) {
 			const cdk = document.querySelector('#cdk-describedby-message-container')
 
 			infoList.forEach(elem => {
-				const label = elem.querySelector('field-formatter').innerText
+				let label = elem.querySelector('field-formatter').innerText
 				const altClass = elem.querySelector('theme-icon').getAttribute('aria-describedby')
 				const altLabel = cdk.querySelector(`#${altClass}`).innerHTML
 				dataCompany.summary.about[camelize(altLabel)] = label
@@ -68,7 +83,9 @@ async function getPage(term) {
 				let label = elem.querySelector('.wrappable-label-with-info').innerText
 				const value = elem.querySelector('field-formatter').innerText
 
-				dataCompany.summary.details[camelize(label)] = value
+				label = camelize(label)
+
+				dataCompany.summary.details[label] = value
 			})
 			expDescription.classList.add('expanded');
 			dataCompany.summary.details.description = expDescription.innerText
@@ -76,8 +93,61 @@ async function getPage(term) {
 			return dataCompany
 		})
 
-		await browser.close()
-		return curData
+		// Investment Page
+		const result = await page2.evaluate((curData) => {
+			function camelize(str) {
+				return str.replace(/(?:^\w|[A-Z]|\b\w)/g, function (word, index) {
+					return index === 0 ? word.toLowerCase() : word.toUpperCase();
+				}).replace(/\s+/g, '');
+			}
+
+			const rows = document.querySelectorAll('row-card')
+			const items = document.querySelectorAll('anchored-values a')
+
+			items.forEach(item => {
+				const label = item.querySelector('label-with-info').innerText
+				const value = item.querySelector('field-formatter').innerText
+				curData.investments.highlights[camelize(label)] = value
+			})
+
+			rows.forEach(row => {
+				const tableRows = row.querySelectorAll('tbody tr')
+				const blockTitle = camelize(row.querySelector('.section-title').innerText)
+
+				const moreBtn = row.querySelector('list-card-more-results')
+
+				if (moreBtn) {
+					const content = moreBtn.querySelector('a').click()
+					curData.content = content
+				}
+
+				const tableHead = row.querySelectorAll('thead th')
+				const headers = []
+
+				tableHead.forEach(elem => {
+					const label = camelize(elem.querySelector('label-with-info').innerText)
+					headers.push(label)
+				})
+
+				tableRows.forEach(elem => {
+					const cells = elem.querySelectorAll('td')
+					const obj = {}
+					cells.forEach((cell, i) => {
+						obj[headers[i]] = cell.innerText
+					})
+					if (curData.investments[blockTitle]) curData.investments[blockTitle].push(obj)
+					else {
+						curData.investments[blockTitle] = [obj]
+					}
+				})
+			})
+
+			return curData
+		}, (curData))
+
+
+		//await browser.close()
+		return result
 	} catch (e) {
 		console.log(e);
 		if (e.name === 'TimeoutError') {
@@ -103,3 +173,4 @@ const start = async () => {
 }
 
 start();
+
