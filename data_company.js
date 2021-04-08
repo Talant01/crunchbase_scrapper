@@ -1,23 +1,26 @@
 const fs = require('fs')
 const puppeteer = require('puppeteer');
 
-async function getPage(term) {
+async function login() {
+	const browser = await puppeteer.launch({
+		headless: false,
+		slowMo: 10
+	});
+
+	const loginPage = await browser.newPage()
+
+	await loginPage.goto('https://www.crunchbase.com/login')
+	await loginPage.waitForSelector('login')
+	await loginPage.type('input[name=email]', 'contact@angelmatch.io', { delay: 20 })
+	await loginPage.type('input[name=password]', '2021angelmatcH', { delay: 20 })
+	await loginPage.keyboard.press(String.fromCharCode(13))
+	await loginPage.waitForTimeout(2000)
+	await loginPage.close()
+	return browser
+}
+
+async function getPage(term, browser) {
 	try {
-		const browser = await puppeteer.launch({
-			headless: false,
-			slowMo: 10
-		});
-
-		const loginPage = await browser.newPage()
-
-		await loginPage.goto('https://www.crunchbase.com/login')
-		await loginPage.waitForSelector('login')
-		await loginPage.type('input[name=email]', 'contact@angelmatch.io', { delay: 20 })
-		await loginPage.type('input[name=password]', '2021angelmatcH', { delay: 20 })
-		await loginPage.keyboard.press(String.fromCharCode(13))
-		await loginPage.waitForTimeout(2000)
-		await loginPage.close()
-
 		const page = await browser.newPage();
 		const page2 = await browser.newPage();
 		page.on('console', consoleObj => console.log(consoleObj.text()));
@@ -103,7 +106,7 @@ async function getPage(term) {
 		const currentURL = await page2.url()
 		console.log(currentURL);
 		if (!currentURL.includes('recent_investments')) {
-			await browser.close()
+			//await browser.close()
 			return curData
 		}
 		// Investment Page
@@ -214,7 +217,7 @@ async function getPage(term) {
 
 		}
 
-		await browser.close()
+		//await browser.close()
 		return result
 	} catch (e) {
 		console.log(e);
@@ -229,12 +232,12 @@ const start = async () => {
 	// const curData = await getPage(data[5].crunchbaseURL)
 	// console.log(curData)
 	// fs.writeFileSync('test.json', JSON.stringify(curData))
-
-	for (let i = 149; i < data.length; i++) {
+	const browser = await login()
+	for (let i = 240; i < data.length; i++) {
 		console.log(i);
 		console.log(data[i].crunchbaseURL);
 		if (data[i].crunchbaseURL !== undefined) {
-			const curData = await getPage(data[i].crunchbaseURL)
+			const curData = await getPage(data[i].crunchbaseURL, browser)
 			curData.website = data[i].website
 			curData.crunchbaseURL = data[i].crunchbaseURL
 			curData.id = data[i].id
